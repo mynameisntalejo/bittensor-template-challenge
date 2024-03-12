@@ -1,13 +1,17 @@
-import pytest
 import asyncio
 import bittensor as bt
-from prompting.mock import MockDendrite, MockMetagraph, MockSubtensor
-from prompting.protocol import PromptingSynapse
+import pytest
+
+from template.mock import MockDendrite, MockMetagraph, MockSubtensor
+from template.protocol import PromptingSynapse
+
+wallet = bt.MockWallet()
+wallet.create(coldkey_use_password=False)
 
 
 @pytest.mark.parametrize("netuid", [1, 2, 3])
 @pytest.mark.parametrize("n", [2, 4, 8, 16, 32, 64])
-@pytest.mark.parametrize("wallet", [bt.MockWallet(), None])
+@pytest.mark.parametrize("wallet", [wallet, None])
 def test_mock_subtensor(netuid, n, wallet):
     subtensor = MockSubtensor(netuid=netuid, n=n, wallet=wallet)
     neurons = subtensor.neurons(netuid=netuid)
@@ -26,9 +30,7 @@ def test_mock_subtensor(netuid, n, wallet):
 
     for neuron in neurons:
         assert type(neuron) == bt.NeuronInfo
-        assert subtensor.is_hotkey_registered(
-            netuid=netuid, hotkey_ss58=neuron.hotkey
-        )
+        assert subtensor.is_hotkey_registered(netuid=netuid, hotkey_ss58=neuron.hotkey)
 
 
 @pytest.mark.parametrize("n", [16, 32, 64])
@@ -58,7 +60,7 @@ def test_mock_neuron():
 @pytest.mark.parametrize("max_time", [0.1, 0.15, 0.2])
 @pytest.mark.parametrize("n", [4, 16, 64])
 def test_mock_dendrite_timings(timeout, min_time, max_time, n):
-    mock_wallet = None
+    mock_wallet = bt.MockWallet(config=None)
     mock_dendrite = MockDendrite(mock_wallet)
     mock_dendrite.min_time = min_time
     mock_dendrite.max_time = max_time
@@ -78,17 +80,13 @@ def test_mock_dendrite_timings(timeout, min_time, max_time, n):
     responses = asyncio.run(run())
     for synapse in responses:
         assert (
-            hasattr(synapse, "dendrite")
-            and type(synapse.dendrite) == bt.TerminalInfo
+                hasattr(synapse, "dendrite") and type(synapse.dendrite) == bt.TerminalInfo
         )
 
         dendrite = synapse.dendrite
         # check synapse.dendrite has (process_time, status_code, status_message)
         for field in ("process_time", "status_code", "status_message"):
-            assert (
-                hasattr(dendrite, field)
-                and getattr(dendrite, field) is not None
-            )
+            assert hasattr(dendrite, field) and getattr(dendrite, field) is not None
 
         # check that the dendrite take between min_time and max_time
         assert min_time <= dendrite.process_time
@@ -97,11 +95,11 @@ def test_mock_dendrite_timings(timeout, min_time, max_time, n):
         if dendrite.process_time >= timeout + 0.1:
             assert dendrite.status_code == 408
             assert dendrite.status_message == "Timeout"
-            assert synapse.dummy_output == synapse.dummy_input
+            assert synapse.completion == ""
         # check that responses which take less than timeout have 200 status code
         elif dendrite.process_time < timeout:
             assert dendrite.status_code == 200
             assert dendrite.status_message == "OK"
-            # check that outputs are not empty for successful responses
-            assert synapse.dummy_output == synapse.dummy_input * 2
+            # check that completions are not empty for successful responses
+            assert type(synapse.completion) == str and len(synapse.completion) > 0
         # dont check for responses which take between timeout and max_time because they are not guaranteed to have a status code of 200 or 408

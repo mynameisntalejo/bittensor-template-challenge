@@ -1,6 +1,5 @@
 # The MIT License (MIT)
-# Copyright © 2023 Yuma Rao
-# Copyright © 2023 Opentensor Foundation
+# Copyright © 2024 Yuma Rao
 
 # Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated
 # documentation files (the “Software”), to deal in the Software without restriction, including without limitation
@@ -16,10 +15,10 @@
 # OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 # DEALINGS IN THE SOFTWARE.
 
-import os
-import torch
 import argparse
 import bittensor as bt
+import os
+import torch
 from loguru import logger
 
 
@@ -36,7 +35,7 @@ def check_config(cls, config: "bt.Config"):
             config.neuron.name,
         )
     )
-    print("full path:", full_path)
+    bt.logging.info(f"Logging path: {full_path}")
     config.neuron.full_path = os.path.expanduser(full_path)
     if not os.path.exists(config.neuron.full_path):
         os.makedirs(config.neuron.full_path, exist_ok=True)
@@ -60,7 +59,7 @@ def add_args(cls, parser):
     """
     Adds relevant arguments to the parser for operation.
     """
-
+    # Netuid Arg: The netuid of the subnet to connect to.
     parser.add_argument("--netuid", type=int, help="Subnet netuid", default=1)
 
     parser.add_argument(
@@ -99,10 +98,21 @@ def add_args(cls, parser):
     )
 
     parser.add_argument(
-        "--wandb.off",
+        "--neuron.log_full",
         action="store_true",
-        help="Turn off wandb.",
+        help="If set, logs more information.",
         default=False,
+    )
+
+    parser.add_argument(
+        "--no_background_thread",
+        action="store_true",
+        help="If set, we dont run the neuron in a background thread.",
+        default=True,
+    )
+
+    parser.add_argument(
+        "--wandb.off", action="store_true", help="Turn off wandb.", default=False
     )
 
     parser.add_argument(
@@ -131,6 +141,20 @@ def add_miner_args(cls, parser):
     )
 
     parser.add_argument(
+        "--neuron.model_id",
+        type=str,
+        help="The model to use for the validator.",
+        default="gpt2",
+    )
+
+    parser.add_argument(
+        "--neuron.load_quantized",
+        type=str,
+        default=False,
+        help="Load quantized model.",
+    )
+
+    parser.add_argument(
         "--blacklist.force_validator_permit",
         action="store_true",
         help="If set, we will force incoming requests to have a permit.",
@@ -145,10 +169,52 @@ def add_miner_args(cls, parser):
     )
 
     parser.add_argument(
-        "--wandb.project_name",
+        "--neuron.system_prompt",
         type=str,
-        default="template-miners",
-        help="Wandb project to log to.",
+        help="The system prompt to use for the miner.",
+        default="You are a helpful AI assistant. You answer questions, summarize documents, and debug code. You are always straight to the point and honest.",
+    )
+
+    parser.add_argument(
+        "--neuron.max_tokens",
+        type=int,
+        default=256,
+        help="The maximum number of tokens to generate in the completion.",
+    )
+
+    parser.add_argument(
+        "--neuron.temperature",
+        type=float,
+        default=0.7,
+        help="Sampling temperature to use, between 0 and 2.",
+    )
+
+    parser.add_argument(
+        "--neuron.top_k",
+        type=float,
+        default=50,
+        help="Nucleus sampling parameter, top_p probability mass.",
+    )
+
+    parser.add_argument(
+        "--neuron.top_p",
+        type=float,
+        default=0.95,
+        help="Nucleus sampling parameter, top_p probability mass.",
+    )
+
+    parser.add_argument(
+        "--neuron.stop_on_forward_exception",
+        type=bool,
+        default=False,
+        help="Set miner to stop on forward exception.",
+    )
+
+    parser.add_argument(
+        "--wandb.on",
+        type=bool,
+        default=False,
+        help="Enable wandb logging.",
     )
 
     parser.add_argument(
@@ -156,6 +222,13 @@ def add_miner_args(cls, parser):
         type=str,
         default="opentensor-dev",
         help="Wandb entity to log to.",
+    )
+
+    parser.add_argument(
+        "--wandb.project_name",
+        type=str,
+        default="alpha-miners",
+        help="Wandb project to log to.",
     )
 
 
@@ -170,10 +243,40 @@ def add_validator_args(cls, parser):
     )
 
     parser.add_argument(
+        "--neuron.model_id",
+        type=str,
+        help="The model to use for the validator.",
+        default="HuggingFaceH4/zephyr-7b-beta",
+    )
+
+    parser.add_argument(
+        "--neuron.tasks",
+        type=str,
+        nargs="+",
+        help="The tasks to use for the validator.",
+        default=["math"],
+    )
+
+    parser.add_argument(
+        "--neuron.task_p",
+        type=float,
+        nargs="+",
+        help="The probability of sampling each task.",
+        default=[1],
+    )
+
+    parser.add_argument(
         "--neuron.timeout",
         type=float,
         help="The timeout for each forward call in seconds.",
         default=10,
+    )
+
+    parser.add_argument(
+        "--neuron.max_tokens",
+        type=int,
+        help="The maximum number of tokens in generated responses.",
+        default=256,
     )
 
     parser.add_argument(
@@ -205,6 +308,13 @@ def add_validator_args(cls, parser):
     )
 
     parser.add_argument(
+        "--neuron.decay_alpha",
+        type=float,
+        help="Constant decay rate for the moving average score.",
+        default=0.001,
+    )
+
+    parser.add_argument(
         "--neuron.axon_off",
         "--axon_off",
         action="store_true",
@@ -225,7 +335,7 @@ def add_validator_args(cls, parser):
         "--wandb.project_name",
         type=str,
         help="The name of the project where you are sending the new run.",
-        default="template-validators",
+        default="alpha-validators",
     )
 
     parser.add_argument(
@@ -233,6 +343,20 @@ def add_validator_args(cls, parser):
         type=str,
         help="The name of the project where you are sending the new run.",
         default="opentensor-dev",
+    )
+
+    parser.add_argument(
+        "--neuron.query_unique_coldkeys",
+        action="store_true",
+        help="Only query a single hotkey per coldkey.",
+        default=False,
+    )
+
+    parser.add_argument(
+        "--neuron.query_unique_ips",
+        action="store_true",
+        help="Only query a single hotkey per ip.",
+        default=False,
     )
 
 

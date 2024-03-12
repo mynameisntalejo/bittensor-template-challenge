@@ -1,7 +1,5 @@
 # The MIT License (MIT)
-# Copyright © 2023 Yuma Rao
-# TODO(developer): Set your name
-# Copyright © 2023 <your name>
+# Copyright © 2024 Yuma Rao
 
 # Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated
 # documentation files (the “Software”), to deal in the Software without restriction, including without limitation
@@ -34,9 +32,9 @@ def reward(query: int, response: int) -> float:
 
 
 def get_rewards(
-    self,
-    query: int,
-    responses: List[float],
+        self,
+        query: int,
+        responses: List[float],
 ) -> torch.FloatTensor:
     """
     Returns a tensor of rewards for the given query and responses.

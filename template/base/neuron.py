@@ -1,5 +1,5 @@
 # The MIT License (MIT)
-# Copyright © 2023 Yuma Rao
+# Copyright © 2024 Yuma Rao
 
 # Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated
 # documentation files (the “Software”), to deal in the Software without restriction, including without limitation
@@ -15,18 +15,16 @@
 # OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 # DEALINGS IN THE SOFTWARE.
 
-import copy
-import typing
-
 import bittensor as bt
-
+import copy
+import sys
 from abc import ABC, abstractmethod
 
+from template import __spec_version__ as spec_version
+from template.mock import MockSubtensor, MockMetagraph
 # Sync calls set weights and also resyncs the metagraph.
 from template.utils.config import check_config, add_args, config
 from template.utils.misc import ttl_get_block
-from template import __spec_version__ as spec_version
-from template.mock import MockSubtensor, MockMetagraph
 
 
 class BaseNeuron(ABC):
@@ -35,8 +33,6 @@ class BaseNeuron(ABC):
 
     In addition to creating a wallet, subtensor, and metagraph, this class also handles the synchronization of the network state via a basic checkpointing mechanism based on epoch length.
     """
-
-    neuron_type: str = "BaseNeuron"
 
     @classmethod
     def check_config(cls, config: "bt.Config"):
@@ -47,7 +43,7 @@ class BaseNeuron(ABC):
         add_args(cls, parser)
 
     @classmethod
-    def config(cls):
+    def _config(cls):
         return config(cls)
 
     subtensor: "bt.subtensor"
@@ -60,8 +56,8 @@ class BaseNeuron(ABC):
         return ttl_get_block(self)
 
     def __init__(self, config=None):
-        base_config = copy.deepcopy(config or BaseNeuron.config())
-        self.config = self.config()
+        base_config = copy.deepcopy(config or BaseNeuron._config())
+        self.config = self._config()
         self.config.merge(base_config)
         self.check_config(self.config)
 
@@ -81,12 +77,8 @@ class BaseNeuron(ABC):
         # The wallet holds the cryptographic key pairs for the miner.
         if self.config.mock:
             self.wallet = bt.MockWallet(config=self.config)
-            self.subtensor = MockSubtensor(
-                self.config.netuid, wallet=self.wallet
-            )
-            self.metagraph = MockMetagraph(
-                self.config.netuid, subtensor=self.subtensor
-            )
+            self.subtensor = MockSubtensor(self.config.netuid, wallet=self.wallet)
+            self.metagraph = MockMetagraph(self.config.netuid, subtensor=self.subtensor)
         else:
             self.wallet = bt.wallet(config=self.config)
             self.subtensor = bt.subtensor(config=self.config)
@@ -100,9 +92,7 @@ class BaseNeuron(ABC):
         self.check_registered()
 
         # Each miner gets a unique identity (UID) in the network for differentiation.
-        self.uid = self.metagraph.hotkeys.index(
-            self.wallet.hotkey.ss58_address
-        )
+        self.uid = self.metagraph.hotkeys.index(self.wallet.hotkey.ss58_address)
         bt.logging.info(
             f"Running neuron on subnet: {self.config.netuid} with uid {self.uid} using network: {self.subtensor.chain_endpoint}"
         )
@@ -135,21 +125,21 @@ class BaseNeuron(ABC):
     def check_registered(self):
         # --- Check for registration.
         if not self.subtensor.is_hotkey_registered(
-            netuid=self.config.netuid,
-            hotkey_ss58=self.wallet.hotkey.ss58_address,
+                netuid=self.config.netuid,
+                hotkey_ss58=self.wallet.hotkey.ss58_address,
         ):
             bt.logging.error(
                 f"Wallet: {self.wallet} is not registered on netuid {self.config.netuid}."
                 f" Please register the hotkey using `btcli subnets register` before trying again"
             )
-            exit()
+            sys.exit()
 
     def should_sync_metagraph(self):
         """
         Check if enough epoch blocks have elapsed since the last checkpoint to sync.
         """
         return (
-            self.block - self.metagraph.last_update[self.uid]
+                self.block - self.metagraph.last_update[self.uid]
         ) > self.config.neuron.epoch_length
 
     def should_set_weights(self) -> bool:
@@ -161,19 +151,18 @@ class BaseNeuron(ABC):
         if self.config.neuron.disable_set_weights:
             return False
 
+        if not self.metagraph.validator_permit[self.uid]:
+            return False
+
         # Define appropriate logic for when set weights.
         return (
-            (self.block - self.metagraph.last_update[self.uid])
-            > self.config.neuron.epoch_length
-            and self.neuron_type != "MinerNeuron"
-        )  # don't set weights if you're a miner
+                self.block - self.metagraph.last_update[self.uid]
+        ) > self.config.neuron.epoch_length
 
     def save_state(self):
-        bt.logging.warning(
-            "save_state() not implemented for this neuron. You can implement this function to save model checkpoints or other useful data."
-        )
+        pass
 
     def load_state(self):
-        bt.logging.warning(
+        bt.logging.debug(
             "load_state() not implemented for this neuron. You can implement this function to load model checkpoints or other useful data."
         )

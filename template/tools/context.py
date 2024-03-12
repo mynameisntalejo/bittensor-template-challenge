@@ -1,0 +1,16 @@
+from dataclasses import dataclass
+from typing import List
+
+
+@dataclass
+class Context:
+    title: str
+    topic: str
+    subtopic: str
+    content: str
+    internal_links: List[str]
+    external_links: List[str]
+    source: str
+    tags: List[str] = None
+    extra: dict = None  # additional non-essential information
+    stats: dict = None  # retrieval stats such as fetch time, number of tries, etc.

@@ -1,5 +1,4 @@
 # The MIT License (MIT)
-# Copyright © 2023 Opentensor Foundation
 
 # Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated
 # documentation files (the “Software”), to deal in the Software without restriction, including without limitation
@@ -15,7 +14,6 @@
 # OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 # DEALINGS IN THE SOFTWARE.
 
-from typing import Union
 from bittensor import (
     Balance,
     NeuronInfo,
@@ -28,9 +26,9 @@ from bittensor.mock.wallet_mock import get_mock_coldkey as _get_mock_coldkey
 from bittensor.mock.wallet_mock import get_mock_hotkey as _get_mock_hotkey
 from bittensor.mock.wallet_mock import get_mock_keypair as _get_mock_keypair
 from bittensor.mock.wallet_mock import get_mock_wallet as _get_mock_wallet
-
 from rich.console import Console
 from rich.text import Text
+from typing import Union
 
 
 def __mock_wallet_factory__(*args, **kwargs) -> _MockWallet:
@@ -46,9 +44,9 @@ class CLOSE_IN_VALUE:
     tolerance: Union[float, int, Balance]
 
     def __init__(
-        self,
-        value: Union[float, int, Balance],
-        tolerance: Union[float, int, Balance] = 0.0,
+            self,
+            value: Union[float, int, Balance],
+            tolerance: Union[float, int, Balance] = 0.0,
     ) -> None:
         self.value = value
         self.tolerance = tolerance
@@ -57,11 +55,11 @@ class CLOSE_IN_VALUE:
         # True if __o \in [value - tolerance, value + tolerance]
         # or if value \in [__o - tolerance, __o + tolerance]
         return (
-            (self.value - self.tolerance) <= __o
-            and __o <= (self.value + self.tolerance)
+                (self.value - self.tolerance) <= __o
+                and __o <= (self.value + self.tolerance)
         ) or (
-            (__o - self.tolerance) <= self.value
-            and self.value <= (__o + self.tolerance)
+                (__o - self.tolerance) <= self.value
+                and self.value <= (__o + self.tolerance)
         )
 
 

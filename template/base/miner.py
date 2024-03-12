@@ -1,5 +1,5 @@
 # The MIT License (MIT)
-# Copyright © 2023 Yuma Rao
+# Copyright © 2024 Yuma Rao
 
 # Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated
 # documentation files (the “Software”), to deal in the Software without restriction, including without limitation
@@ -15,14 +15,13 @@
 # OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 # DEALINGS IN THE SOFTWARE.
 
+import argparse
+import asyncio
+import bittensor as bt
+import threading
 import time
 import torch
-import asyncio
-import threading
-import argparse
-import traceback
-
-import bittensor as bt
+from traceback import print_exception
 
 from template.base.neuron import BaseNeuron
 from template.utils.config import add_miner_args
@@ -32,8 +31,6 @@ class BaseMinerNeuron(BaseNeuron):
     """
     Base class for Bittensor miners.
     """
-
-    neuron_type: str = "MinerNeuron"
 
     @classmethod
     def add_args(cls, parser: argparse.ArgumentParser):
@@ -113,8 +110,8 @@ class BaseMinerNeuron(BaseNeuron):
         try:
             while not self.should_exit:
                 while (
-                    self.block - self.metagraph.last_update[self.uid]
-                    < self.config.neuron.epoch_length
+                        self.block - self.metagraph.last_update[self.uid]
+                        < self.config.neuron.epoch_length
                 ):
                     # Wait before checking again.
                     time.sleep(1)
@@ -134,8 +131,10 @@ class BaseMinerNeuron(BaseNeuron):
             exit()
 
         # In case of unforeseen errors, the miner will log the error and continue operations.
-        except Exception as e:
-            bt.logging.error(traceback.format_exc())
+        except Exception as err:
+            bt.logging.error("Error during mining", str(err))
+            bt.logging.debug(print_exception(type(err), err, err.__traceback__))
+            self.should_exit = True
 
     def run_in_background_thread(self):
         """
@@ -167,6 +166,7 @@ class BaseMinerNeuron(BaseNeuron):
         This method facilitates the use of the miner in a 'with' statement.
         """
         self.run_in_background_thread()
+
         return self
 
     def __exit__(self, exc_type, exc_value, traceback):
